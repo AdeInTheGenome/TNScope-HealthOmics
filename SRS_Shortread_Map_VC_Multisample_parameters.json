@@ -1,0 +1,54 @@
+{
+	"cohort": {
+    "patients": [ 
+    	{
+        "tumor_sample_name": "test_patient1",
+        "normal_sample_name": "chr4_chr7_normal",
+        "r1_tumor_fastqs": [
+          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_tumor_R1.fastq.gz"
+        ],
+        "r2_tumor_fastqs": [
+          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_tumor_R2.fastq.gz"
+        ],
+        "r1_normal_fastqs": [
+          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_normal_R1.fastq.gz"
+        ],
+        "r2_normal_fastqs": [
+          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_normal_R2.fastq.gz"
+        ],
+        "tumor_read_groups": [
+        	"@RG\\tID:chr4_chr7_tumor_test1\\tSM:chr4_chr7_tumor_test1\\tPL:ILLUMINA"
+        ],
+        "normal_read_groups": [
+        	"@RG\\tID:normal_sample\\tSM:chr4_chr7_normal\\tPL:ILLUMINA"
+        ]
+      },
+      {
+        "tumor_sample_name": "test_patient2",
+        "normal_sample_name": "chr4_chr7_normal",
+        "r1_tumor_fastqs": [
+          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_tumor_R1.fastq.gz"
+        ],
+        "r2_tumor_fastqs": [
+          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_tumor_R2.fastq.gz"
+        ],
+        "r1_normal_fastqs": [
+          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_normal_R1.fastq.gz"
+        ],
+        "r2_normal_fastqs": [
+          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_normal_R2.fastq.gz"
+        ],
+        "tumor_read_groups": [
+        	"@RG\\tID:chr4_chr7_tumor_test1\\tSM:chr4_chr7_tumor_test1\\tPL:ILLUMINA"
+        ],
+        "normal_read_groups": [
+        	"@RG\\tID:normal_sample\\tSM:chr4_chr7_normal\\tPL:ILLUMINA"
+        ]
+      }
+    ]
+  },
+  "reference_name": "t2t_mat",
+  "canonical_user_id": "ed6482af321252edf8833a8d9cbdf8c2eeecc6aeec61133a561803cde91e02c7",
+  "sentieon_docker": "860660336427.dkr.ecr.us-east-1.amazonaws.com/sentieon:omics-1",
+  "deepsomatic_docker":"860660336427.dkr.ecr.us-east-1.amazonaws.com/deepsomatic-gpu:omics-1"
+}

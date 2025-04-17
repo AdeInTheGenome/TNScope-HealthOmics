@@ -1,0 +1,26 @@
+{
+  "cohort":{
+    "description": "Array of patient information including tumor and normal fastq files",
+      "optional": false
+  },
+  "reference_name": {
+    "description": "The name of the Human reference genome build. Choices are: t2t_mat and t2t_pat"
+  },
+  "canonical_user_id": {
+    "description": "Your account's AWS canonical user ID. Used to acquire a Sentieon license"
+  },
+  "sentieon_docker": {
+    "description": "Sentieon docker image"
+  },
+  "deepsomatic_docker": {
+    "description": "DeepSomatic docker image"
+  },
+  "n_threads": {
+    "description": "Number of vCPUs to allocate for the task (default: 32)",
+    "optional": true
+  },
+  "memory": {
+    "description": "Memory to allocate for the task (default: 64 GiB)",
+    "optional": true
+  }
+}
