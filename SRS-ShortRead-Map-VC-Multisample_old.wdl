@@ -64,7 +64,7 @@ workflow short_read_variant_calling {
   # Process each tumor sample against the single normal sample.
   scatter(individual in cohort.samples) {
 
-    call SentieonMapping {
+    call SentieonSomatic {
       input:
         r1_fastq = individual.r1_tumor_fastqs,
         r2_fastq = individual.r2_tumor_fastqs,
@@ -102,37 +102,13 @@ workflow short_read_variant_calling {
         sentieon_docker = sentieon_docker
     }
 
-
-    call SentieonVariantCalling {
-      input:
-        aligned_reads = SentieonMapping.aligned_reads,
-        aligned_index = SentieonMapping.aligned_index,
-        tumor_name = individual.tumor_sample_name,
-
-        normal_reads = SentieonMapping.normal_reads,
-        normal_index = SentieonMapping.normal_index,
-        normal_name = individual.normal_sample_name,
-
-        ref_fasta = DownloadReference.ref_fasta,
-        license_ok = SentieonLicense.license_ok,
-        canonical_user_id = canonical_user_id,
-        sentieon_license = sentieon_license,
-
-        n_threads = n_threads,
-        memory = memory,
-        preemptible_tries = preemptible_tries,
-        sentieon_docker = sentieon_docker,
-        calling_driver_xargs = calling_driver_xargs,
-        calling_algo_xargs = calling_algo_xargs
-      }
-
     call DeepSomatic {
       input:
-        aligned_reads = SentieonMapping.aligned_reads,
-        aligned_index = SentieonMapping.aligned_index,
+        aligned_reads = SentieonSomatic.aligned_reads,
+        aligned_index = SentieonSomatic.aligned_index,
         tumor_name = individual.tumor_sample_name,
-        normal_reads = SentieonMapping.normal_reads,
-        normal_index = SentieonMapping.normal_index,
+        normal_reads = SentieonSomatic.normal_reads,
+        normal_index = SentieonSomatic.normal_index,
         normal_name = individual.normal_sample_name,
         ref_fasta = DownloadReference.ref_fasta,
         ref_fai = DownloadReference.ref_fai,
@@ -144,26 +120,26 @@ workflow short_read_variant_calling {
   }
 
   output {
-    Array[File] aligned_reads = SentieonMapping.aligned_reads
-    Array[File] aligned_index = SentieonMapNormal.aligned_index
-    Array[File?]? normal_reads = SentieonMapping.normal_reads
-    Array[File?]? normal_index = SentieonMapping.normal_index
+    Array[File] aligned_reads = SentieonSomatic.aligned_reads
+    Array[File] aligned_index = SentieonSomatic.aligned_index
+    Array[File?]? normal_reads = SentieonSomatic.normal_reads
+    Array[File?]? normal_index = SentieonSomatic.normal_index
 
-    Array[File] Sentieon_calls_vcf = SentieonVariantCalling.Sentieon_calls_vcf
-    Array[File] Sentieon_calls_vcf_tbi = SentieonVariantCalling.Sentieon_calls_vcf_tbi
+    Array[File] Sentieon_calls_vcf = SentieonSomatic.Sentieon_calls_vcf
+    Array[File] Sentieon_calls_vcf_tbi = SentieonSomatic.Sentieon_calls_vcf_tbi
 
-    Array[File] Sentieon_dedup_metrics = SentieonMapping.Sentieon_dedup_metrics
-    Array[File] Sentieon_mq_metrics = SentieonMapping.Sentieon_mq_metrics
-    Array[File] Sentieon_qd_metrics = SentieonMapping.Sentieon_qd_metrics
-    Array[File] Sentieon_gc_summary = SentieonMapping.Sentieon_gc_summary
-    Array[File] Sentieon_gc_metrics = SentieonMapping.Sentieon_gc_metrics
-    Array[File] Sentieon_as_metrics = SentieonMapping.Sentieon_as_metrics
-    Array[File] Sentieon_is_metrics = SentieonMapping.Sentieon_is_metrics
+    Array[File] Sentieon_dedup_metrics = SentieonSomatic.Sentieon_dedup_metrics
+    Array[File] Sentieon_mq_metrics = SentieonSomatic.Sentieon_mq_metrics
+    Array[File] Sentieon_qd_metrics = SentieonSomatic.Sentieon_qd_metrics
+    Array[File] Sentieon_gc_summary = SentieonSomatic.Sentieon_gc_summary
+    Array[File] Sentieon_gc_metrics = SentieonSomatic.Sentieon_gc_metrics
+    Array[File] Sentieon_as_metrics = SentieonSomatic.Sentieon_as_metrics
+    Array[File] Sentieon_is_metrics = SentieonSomatic.Sentieon_is_metrics
 
-    Array[File] Sentieon_mq_plot = SentieonMapping.Sentieon_mq_plot
-    Array[File] Sentieon_qd_plot = SentieonMapping.Sentieon_qd_plot
-    Array[File] Sentieon_gc_plot = SentieonMapping.Sentieon_gc_plot
-    Array[File] Sentieon_is_plot = SentieonMapping.Sentieon_is_plot
+    Array[File] Sentieon_mq_plot = SentieonSomatic.Sentieon_mq_plot
+    Array[File] Sentieon_qd_plot = SentieonSomatic.Sentieon_qd_plot
+    Array[File] Sentieon_gc_plot = SentieonSomatic.Sentieon_gc_plot
+    Array[File] Sentieon_is_plot = SentieonSomatic.Sentieon_is_plot
 
     Array[File] DeepSomatic_calls_vcf = DeepSomatic.DeepSomatic_calls_vcf
     Array[File] DeepSomatic_calls_vcf_tbi = DeepSomatic.DeepSomatic_calls_vcf_tbi
@@ -242,7 +218,7 @@ task DownloadReference {
         )
         ;;
       hg38|hg38_noalt|hs38|GRCh38)
-        ref_base="ref/hg38_giab_v3/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta"
+        ref_base="ref/GRCh38/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna"
         has_alt=false
         has_dbSNP=true
         has_knownsites=true
@@ -339,7 +315,7 @@ task DownloadReference {
   }
 }
 
-task SentieonMapping {
+task SentieonSomatic {
   input {
     # Input tumor fastq files
     Array[File] r1_fastq = []
@@ -430,6 +406,39 @@ task SentieonMapping {
       echo "The number of normal r1 fastq does not equal the number of r2 fastq"
       exit 1
     fi
+
+    # Set the BQSR and calling intervals
+    first_chrom=$(head -n 1 ~{ref_fai} | cut -f 1)
+    case "$first_chrom" in
+      chr10_MATERNAL)
+        BQSR_INTERVALS="chr1_MATERNAL,chr2_MATERNAL,chr3_MATERNAL,chr4_MATERNAL,chr5_MATERNAL,chr6_MATERNAL,chr7_MATERNAL,chr8_MATERNAL,chr9_MATERNAL,chr10_MATERNAL,chr11_MATERNAL,chr12_MATERNAL,chr13_MATERNAL,chr14_MATERNAL,chr15_MATERNAL,chr16_MATERNAL,chr17_MATERNAL,chr18_MATERNAL,chr19_MATERNAL,chr20_MATERNAL,chr21_MATERNAL,chr22_MATERNAL"
+        CALLING_INTERVALS="chrM,chr1_MATERNAL,chr2_MATERNAL,chr3_MATERNAL,chr4_MATERNAL,chr5_MATERNAL,chr6_MATERNAL,chr7_MATERNAL,chr8_MATERNAL,chr9_MATERNAL,chr10_MATERNAL,chr11_MATERNAL,chr12_MATERNAL,chr13_MATERNAL,chr14_MATERNAL,chr15_MATERNAL,chr16_MATERNAL,chr17_MATERNAL,chr18_MATERNAL,chr19_MATERNAL,chr20_MATERNAL,chr21_MATERNAL,chr22_MATERNAL,chrEBV,chrX_MATERNAL"
+        ;;
+      chr10_PATERNAL)
+        BQSR_INTERVALS="chr1_PATERNAL,chr2_PATERNAL,chr3_PATERNAL,chr4_PATERNAL,chr5_PATERNAL,chr6_PATERNAL,chr7_PATERNAL,chr8_PATERNAL,chr9_PATERNAL,chr10_PATERNAL,chr11_PATERNAL,chr12_PATERNAL,chr13_PATERNAL,chr14_PATERNAL,chr15_PATERNAL,chr16_PATERNAL,chr17_PATERNAL,chr18_PATERNAL,chr19_PATERNAL,chr20_PATERNAL,chr21_PATERNAL,chr22_PATERNAL"
+        CALLING_INTERVALS="chrM,chr1_PATERNAL,chr2_PATERNAL,chr3_PATERNAL,chr4_PATERNAL,chr5_PATERNAL,chr6_PATERNAL,chr7_PATERNAL,chr8_PATERNAL,chr9_PATERNAL,chr10_PATERNAL,chr11_PATERNAL,chr12_PATERNAL,chr13_PATERNAL,chr14_PATERNAL,chr15_PATERNAL,chr16_PATERNAL,chr17_PATERNAL,chr18_PATERNAL,chr19_PATERNAL,chr20_PATERNAL,chr21_PATERNAL,chr22_PATERNAL,chrEBV,chrY_PATERNAL"
+        ;;
+      chrM)
+        BQSR_INTERVALS="chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22"
+        CALLING_INTERVALS="chrM,chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY"
+        ;;
+      1)
+        BQSR_INTERVALS="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22"
+        CALLING_INTERVALS="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,X,Y,MT"
+        ;;
+      chr1)
+        BQSR_INTERVALS="chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22"
+        CALLING_INTERVALS="chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY,chrM"
+        ;;
+      chr22)
+        BQSR_INTERVALS="chr22"
+        CALLING_INTERVALS="chr22"
+        ;;
+      *)
+        echo "ERROR: unknown first reference chromosome"
+        exit 1
+        ;;
+    esac
 
     # Alignment with BWA
     alignment_output=()
@@ -558,6 +567,16 @@ task SentieonMapping {
     tumor_sm=$(samtools samples "$tumor_deduped" | cut -f 1 | head -n 1)
     normal_sm=$(samtools samples "$normal_deduped" | cut -f 1 | head -n 1)
 
+    # Variant calling with TNScope
+    sentieon driver -r "~{ref_fasta}" \
+      -i "$tumor_deduped" \
+      ${normal_deduped:+-i "$normal_deduped"} \
+      --interval "$CALLING_INTERVALS" \
+      --algo TNscope\
+        --tumor_sample "$tumor_sm" \
+        ${normal_sm:+--normal_sample "$normal_sm"} \
+        "sample_tnscope.vcf.gz" \
+
     wait
     unset http_proxy
     exit 0
@@ -574,6 +593,10 @@ task SentieonMapping {
     File aligned_index = "sample_aligned.cram.crai"
     File? normal_reads = "normal_aligned.cram"
     File? normal_index = "normal_aligned.cram.crai"
+
+    # VCF outputs
+    File Sentieon_calls_vcf = "sample_tnscope.vcf.gz"
+    File Sentieon_calls_vcf_tbi = "sample_tnscope.vcf.gz.tbi"
 
     # QC output metrics
     File Sentieon_dedup_metrics = "Sentieon_sample_dedup_metrics.txt"
@@ -607,86 +630,6 @@ task SentieonMapping {
   }
 }
 
-task SentieonVariantCalling {
-  input {
-    # Input tumor bam files
-    File aligned_reads
-    File aligned_index
-    String tumor_name
-
-    # Input normmal bam files
-    File normal_reads
-    File normal_index
-    String normal_name
-
-    # Reference genome files
-    File ref_fasta
-    File ref_fai
-  }
-  command <<<
-    # Set the BQSR and calling intervals
-    first_chrom=$(head -n 1 ~{ref_fai} | cut -f 1)
-    case "$first_chrom" in
-      chr10_MATERNAL)
-        BQSR_INTERVALS="chr1_MATERNAL,chr2_MATERNAL,chr3_MATERNAL,chr4_MATERNAL,chr5_MATERNAL,chr6_MATERNAL,chr7_MATERNAL,chr8_MATERNAL,chr9_MATERNAL,chr10_MATERNAL,chr11_MATERNAL,chr12_MATERNAL,chr13_MATERNAL,chr14_MATERNAL,chr15_MATERNAL,chr16_MATERNAL,chr17_MATERNAL,chr18_MATERNAL,chr19_MATERNAL,chr20_MATERNAL,chr21_MATERNAL,chr22_MATERNAL"
-        CALLING_INTERVALS="chrM,chr1_MATERNAL,chr2_MATERNAL,chr3_MATERNAL,chr4_MATERNAL,chr5_MATERNAL,chr6_MATERNAL,chr7_MATERNAL,chr8_MATERNAL,chr9_MATERNAL,chr10_MATERNAL,chr11_MATERNAL,chr12_MATERNAL,chr13_MATERNAL,chr14_MATERNAL,chr15_MATERNAL,chr16_MATERNAL,chr17_MATERNAL,chr18_MATERNAL,chr19_MATERNAL,chr20_MATERNAL,chr21_MATERNAL,chr22_MATERNAL,chrEBV,chrX_MATERNAL"
-        ;;
-      chr10_PATERNAL)
-        BQSR_INTERVALS="chr1_PATERNAL,chr2_PATERNAL,chr3_PATERNAL,chr4_PATERNAL,chr5_PATERNAL,chr6_PATERNAL,chr7_PATERNAL,chr8_PATERNAL,chr9_PATERNAL,chr10_PATERNAL,chr11_PATERNAL,chr12_PATERNAL,chr13_PATERNAL,chr14_PATERNAL,chr15_PATERNAL,chr16_PATERNAL,chr17_PATERNAL,chr18_PATERNAL,chr19_PATERNAL,chr20_PATERNAL,chr21_PATERNAL,chr22_PATERNAL"
-        CALLING_INTERVALS="chrM,chr1_PATERNAL,chr2_PATERNAL,chr3_PATERNAL,chr4_PATERNAL,chr5_PATERNAL,chr6_PATERNAL,chr7_PATERNAL,chr8_PATERNAL,chr9_PATERNAL,chr10_PATERNAL,chr11_PATERNAL,chr12_PATERNAL,chr13_PATERNAL,chr14_PATERNAL,chr15_PATERNAL,chr16_PATERNAL,chr17_PATERNAL,chr18_PATERNAL,chr19_PATERNAL,chr20_PATERNAL,chr21_PATERNAL,chr22_PATERNAL,chrEBV,chrY_PATERNAL"
-        ;;
-      chrM)
-        BQSR_INTERVALS="chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22"
-        CALLING_INTERVALS="chrM,chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY"
-        ;;
-      1)
-        BQSR_INTERVALS="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22"
-        CALLING_INTERVALS="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,X,Y,MT"
-        ;;
-      chr1)
-        BQSR_INTERVALS="chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22"
-        CALLING_INTERVALS="chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX,chrY,chrM"
-        ;;
-      chr22)
-        BQSR_INTERVALS="chr22"
-        CALLING_INTERVALS="chr22"
-        ;;
-      *)
-        echo "ERROR: unknown first reference chromosome"
-        exit 1
-        ;;
-    esac
-
-    # Extract the samples
-    tumor_sm=$(samtools samples "$tumor_deduped" | cut -f 1 | head -n 1)
-    normal_sm=$(samtools samples "$normal_deduped" | cut -f 1 | head -n 1)
-
-    # Variant calling with TNScope
-    sentieon driver -r "~{ref_fasta}" \
-      -i "~{aligned_reads}" \
-      ${normal_deduped:+-i "~{normal_reads}"} \
-      --interval "$CALLING_INTERVALS" \
-      --algo TNscope\
-        --tumor_sample "$tumor_sm" \
-        ${normal_sm:+--normal_sample "$normal_sm"} \
-        "sample_tnscope.vcf.gz" \
-
-    wait
-    unset http_proxy
-    exit 0
-  >>>
-  runtime {
-    preemptible: preemptible_tries
-    docker: sentieon_docker
-    memory: memory
-    cpu: n_threads
-  }
-  output {
-    # VCF outputs
-    File Sentieon_calls_vcf = "sample_tnscope.vcf.gz"
-    File Sentieon_calls_vcf_tbi = "sample_tnscope.vcf.gz.tbi"
-  }
-
 task DeepSomatic {
   input {
     # Input tumor bam files
@@ -712,6 +655,8 @@ task DeepSomatic {
   command <<<
     set -xv
     set -exvuo pipefail
+
+
 
     run_deepsomatic \
     --model_type=WGS \
