@@ -2,6 +2,8 @@ version 1.1
 
 # Somatic variant calling with Sentieon TNScope and Google's Deepsomatic
 
+import "deepsomatic.wdl" as deepsomatic
+
 struct ShortReadSample {
     String tumor_sample_name
     String normal_sample_name
@@ -29,11 +31,17 @@ workflow short_read_variant_calling {
     String sentieon_license = "aws-omics.sentieon.com:9011"
 
     # Execution
-    String n_threads = "32"
-    String memory = "64 GiB"
+    String n_threads_deepsomatic = "16"
+    String n_threads_sentieon = "32"
+    String memory_deepsomatic = "~{n_threads_deepsomatic * 4} GB"
+    String memory_sentieon = "~{n_threads_sentieon * 2} GB"
     Int preemptible_tries = 3
     String deepsomatic_docker
     String sentieon_docker
+    # Default number of threads for misc tasks (4GB per thread assigned for almost all steps)
+    Int def_threads = 2
+    # Scatter small variants calling into equal chunk per chromosome to make use of multiple nodes. Default of 75 Mbp per chromosome (total of 42 chunks for hg38)
+    Int chunk_size = 75000000
 
     # process arguments
     String bwa_xargs = ""
@@ -96,8 +104,8 @@ workflow short_read_variant_calling {
         canonical_user_id = canonical_user_id,
         sentieon_license = sentieon_license,
 
-        n_threads = n_threads,
-        memory = memory,
+        n_threads = n_threads_sentieon,
+        memory = memory_sentieon,
         preemptible_tries = preemptible_tries,
         sentieon_docker = sentieon_docker
     }
@@ -114,20 +122,23 @@ workflow short_read_variant_calling {
         normal_name = individual.normal_sample_name,
 
         ref_fasta = DownloadReference.ref_fasta,
-        license_ok = SentieonLicense.license_ok,
-        canonical_user_id = canonical_user_id,
-        sentieon_license = sentieon_license,
+        ref_fai = DownloadReference.ref_fai,
 
-        n_threads = n_threads,
-        memory = memory,
+        n_threads = n_threads_sentieon,
+        memory = memory_sentieon,
         preemptible_tries = preemptible_tries,
-        sentieon_docker = sentieon_docker,
-        calling_driver_xargs = calling_driver_xargs,
-        calling_algo_xargs = calling_algo_xargs
+        sentieon_docker = sentieon_docker
       }
 
-    call DeepSomatic {
+    call split_contigs {
       input:
+        ref_fasta_index = DownloadReference.ref_fai,
+        chunk_size = chunk_size,
+        threads = def_threads
+    }
+
+    call deepsomatic.run_deepsomatic {
+      input: 
         aligned_reads = SentieonMapping.aligned_reads,
         aligned_index = SentieonMapping.aligned_index,
         tumor_name = individual.tumor_sample_name,
@@ -135,17 +146,17 @@ workflow short_read_variant_calling {
         normal_index = SentieonMapping.normal_index,
         normal_name = individual.normal_sample_name,
         ref_fasta = DownloadReference.ref_fasta,
-        ref_fai = DownloadReference.ref_fai,
-        n_threads = n_threads,
-        memory = memory,
+        ref_fasta_index = DownloadReference.ref_fai,
+        threads = n_threads_deepsomatic,
         preemptible_tries = preemptible_tries,
-        deepsomatic_docker = deepsomatic_docker
+        deepsomatic_docker = deepsomatic_docker,
+        contigs = split_contigs.contigs
     }
   }
 
   output {
     Array[File] aligned_reads = SentieonMapping.aligned_reads
-    Array[File] aligned_index = SentieonMapNormal.aligned_index
+    Array[File] aligned_index = SentieonMapping.aligned_index
     Array[File?]? normal_reads = SentieonMapping.normal_reads
     Array[File?]? normal_index = SentieonMapping.normal_index
 
@@ -165,12 +176,10 @@ workflow short_read_variant_calling {
     Array[File] Sentieon_gc_plot = SentieonMapping.Sentieon_gc_plot
     Array[File] Sentieon_is_plot = SentieonMapping.Sentieon_is_plot
 
-    Array[File] DeepSomatic_calls_vcf = DeepSomatic.DeepSomatic_calls_vcf
-    Array[File] DeepSomatic_calls_vcf_tbi = DeepSomatic.DeepSomatic_calls_vcf_tbi
-    Array[File] DeepSomatic_calls_gvcf = DeepSomatic.DeepSomatic_calls_gvcf
-    Array[File] DeepSomatic_calls_gvcf_tbi = DeepSomatic.DeepSomatic_calls_gvcf_tbi
-
-    Array[File] DeepSomatic_visual_report = DeepSomatic.DeepSomatic_visual_report
+    Array[File] DeepSomatic_calls_vcf = run_deepsomatic.DeepSomatic_calls_vcf
+    Array[File] DeepSomatic_calls_vcf_tbi = run_deepsomatic.DeepSomatic_calls_vcf_tbi
+    Array[File] DeepSomatic_calls_gvcf = run_deepsomatic.DeepSomatic_calls_gvcf
+    Array[File] DeepSomatic_calls_gvcf_tbi = run_deepsomatic.DeepSomatic_calls_gvcf_tbi
   }
 }
 
@@ -622,6 +631,11 @@ task SentieonVariantCalling {
     # Reference genome files
     File ref_fasta
     File ref_fai
+
+    Int preemptible_tries
+    String sentieon_docker
+    Int n_threads
+    String memory
   }
   command <<<
     # Set the BQSR and calling intervals
@@ -686,62 +700,42 @@ task SentieonVariantCalling {
     File Sentieon_calls_vcf = "sample_tnscope.vcf.gz"
     File Sentieon_calls_vcf_tbi = "sample_tnscope.vcf.gz.tbi"
   }
+}
 
-task DeepSomatic {
+# Use bedtools to split contigs
+task split_contigs {
   input {
-    # Input tumor bam files
-    File aligned_reads
-    File aligned_index
-    String tumor_name
-
-    # Input normmal bam files
-    File normal_reads
-    File normal_index
-    String normal_name
-
-    # Reference genome files
-    File ref_fasta
-    File ref_fai
-
-    # Execution
-    String n_threads = "32"
-    String memory = "64 GiB"
-    Int preemptible_tries = 3
-    String deepsomatic_docker
+    File ref_fasta_index
+    Int chunk_size = 75000000
+    Int threads
   }
+
+  Float file_size = ceil(size(ref_fasta_index, "GB") + 10)
+
   command <<<
-    set -xv
-    set -exvuo pipefail
+  set -euxo pipefail
 
-    run_deepsomatic \
-    --model_type=WGS \
-    --ref="~{ref_fasta}" \
-    --reads_normal="~{normal_reads}" \
-    --reads_tumor="~{aligned_reads}" \
-    --output_vcf=sample_deepsomatic.vcf.gz \
-    --output_gvcf=sample_deepsomatic.g.vcf.gz \
-    --sample_name_tumor="~{tumor_name}" \
-    --sample_name_normal="~{normal_name}" \
-    --num_shards="~{n_threads}" \
-    --logging_dir=logs
+  bedtools --version
 
-    ls -l
-
-    wait
-    unset http_proxy
-    exit 0 
+  echo "Splitting contigs for ~{ref_fasta_index}"
+  bedtools makewindows -g ~{ref_fasta_index} -w ~{chunk_size} > contigs.bed
+  grep -v -E "random|chrUn|chrM|chrEBV" contigs.bed > noalt.bed
+  # Split the contig bed files into one file for each line
+  split -l 1 noalt.bed contigs_split.
+  # Add .bed to all the contigs_split file
+  for file in $(ls contigs_split.*); do mv $file $file.bed; done
   >>>
-  runtime {
-    preemptible: preemptible_tries
-    docker: deepsomatic_docker
-    memory: memory
-    cpu: n_threads
-  }
+
   output {
-    File DeepSomatic_calls_vcf = "sample_deepsomatic.vcf.gz"
-    File DeepSomatic_calls_vcf_tbi = "sample_deepsomatic.vcf.gz.tbi"
-    File DeepSomatic_calls_gvcf = "sample_deepsomatic.g.vcf.gz"
-    File DeepSomatic_calls_gvcf_tbi = "sample_deepsomatic.g.vcf.gz.tbi"
-    File DeepSomatic_visual_report = "sample_deepsomatic.visual_report.html"
+    Array[File] contigs = glob("contigs_split.*.bed")
+  }
+
+  runtime {
+    docker: "860660336427.dkr.ecr.us-east-1.amazonaws.com/hifisomatic:bedtools"
+    cpu: threads
+    memory: "~{threads * 4} GB"
+    disk: file_size + " GB"
+    maxRetries: 2
+    preemptible: 1
   }
 }
