@@ -113,6 +113,9 @@ workflow short_read_variant_calling {
 
     call SentieonVariantCalling {
       input:
+        canonical_user_id = canonical_user_id,
+        sentieon_license = sentieon_license,
+        
         aligned_reads = SentieonMapping.aligned_reads,
         aligned_index = SentieonMapping.aligned_index,
         tumor_name = individual.tumor_sample_name,
@@ -253,8 +256,8 @@ task DownloadReference {
       hg38|hg38_noalt|hs38|GRCh38)
         ref_base="ref/hg38_giab_v3/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta"
         has_alt=false
-        has_dbSNP=true
-        has_knownsites=true
+        has_dbSNP=false
+        has_knownsites=false
         ;;
       b37_gatk)
         ref_base="b37/Homo_sapiens_assembly19.fasta"
@@ -290,15 +293,10 @@ task DownloadReference {
         )
         ;;
       quickstart)
-        ref_base="quickstart/ucsc.hg19_chr22.fasta"
+        ref_base="ref/hg38_giab_v3/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta"
         has_alt=false
-        has_dbSNP=true
-        has_knownsites=true
-        VCFS=(
-          "quickstart/dbsnp_135.hg19_chr22.vcf.gz"
-          "quickstart/1000G_phase1.snps.high_confidence.hg19_chr22.sites.vcf.gz"
-          "quickstart/Mills_and_1000G_gold_standard.indels.hg19_chr22.sites.vcf.gz"
-        )
+        has_dbSNP=false
+        has_knownsites=false
         ;;
       *)
         echo "ERROR: unknown genome build"
@@ -618,6 +616,10 @@ task SentieonMapping {
 
 task SentieonVariantCalling {
   input {
+    # Sentieon license configuration
+    String canonical_user_id
+    String sentieon_license = "aws-omics.sentieon.com:9011"
+
     # Input tumor bam files
     File aligned_reads
     File aligned_index
@@ -638,6 +640,10 @@ task SentieonVariantCalling {
     String memory
   }
   command <<<
+    set -xv
+    source /opt/sentieon/omics_credentials.sh "~{sentieon_license}" "~{canonical_user_id}"
+    set -exvuo pipefail
+
     # Set the BQSR and calling intervals
     first_chrom=$(head -n 1 ~{ref_fai} | cut -f 1)
     case "$first_chrom" in
@@ -672,17 +678,17 @@ task SentieonVariantCalling {
     esac
 
     # Extract the samples
-    tumor_sm=$(samtools samples "$tumor_deduped" | cut -f 1 | head -n 1)
-    normal_sm=$(samtools samples "$normal_deduped" | cut -f 1 | head -n 1)
+    tumor_sm=$(samtools samples "~{aligned_reads}" | cut -f 1 | head -n 1)
+    normal_sm=$(samtools samples "~{normal_reads}" | cut -f 1 | head -n 1)
 
     # Variant calling with TNScope
     sentieon driver -r "~{ref_fasta}" \
       -i "~{aligned_reads}" \
-      ${normal_deduped:+-i "~{normal_reads}"} \
+      -i "~{normal_reads}" \
       --interval "$CALLING_INTERVALS" \
       --algo TNscope\
         --tumor_sample "$tumor_sm" \
-        ${normal_sm:+--normal_sample "$normal_sm"} \
+        --normal_sample "$normal_sm" \
         "sample_tnscope.vcf.gz" \
 
     wait
