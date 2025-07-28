@@ -15,12 +15,20 @@
   "deepsomatic_docker": {
     "description": "DeepSomatic docker image"
   },
-  "n_threads": {
-    "description": "Number of vCPUs to allocate for the task (default: 32)",
+  "n_threads_deepsomatic": {
+    "description": "Number of vCPUs to allocate for deepsomatic (default: 16)",
     "optional": true
   },
-  "memory": {
-    "description": "Memory to allocate for the task (default: 64 GiB)",
+  "n_threads_sentieon": {
+    "description": "Number of vCPUs to allocate for TNScope (default: 32)",
+    "optional": true
+  },
+  "memory_deepsomatic": {
+    "description": "Memory to allocate for deepsomatic (default: 64 GiB)",
+    "optional": true
+  },
+  "memory_sentieon": {
+    "description": "Memory to allocate for TNScope (default: 60 GiB)",
     "optional": true
   }
 }

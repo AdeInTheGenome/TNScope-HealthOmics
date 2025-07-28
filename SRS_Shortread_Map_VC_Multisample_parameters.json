@@ -49,6 +49,7 @@
   },
   "reference_name": "hg38",
   "canonical_user_id": "ed6482af321252edf8833a8d9cbdf8c2eeecc6aeec61133a561803cde91e02c7",
-  "sentieon_docker": "860660336427.dkr.ecr.us-east-1.amazonaws.com/sentieon:omics-1",
-  "deepsomatic_docker":"860660336427.dkr.ecr.us-east-1.amazonaws.com/deepsomatic-gpu:omics-1"
+  "sentieon_docker": "860660336427.dkr.ecr.us-east-1.amazonaws.com/sentieon:omics-1-update",
+  "deepsomatic_docker":"860660336427.dkr.ecr.us-east-1.amazonaws.com/deepsomatic-gpu:omics-1",
+  "n_threads_deepsomatic":"32"
 }

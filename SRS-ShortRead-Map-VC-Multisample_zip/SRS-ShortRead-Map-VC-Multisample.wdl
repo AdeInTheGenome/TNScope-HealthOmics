@@ -2,7 +2,7 @@ version 1.1
 
 # Somatic variant calling with Sentieon TNScope and Google's Deepsomatic
 
-import "deepsomatic.wdl" as deepsomatic
+import "deepsomatic_gpu.wdl" as deepsomatic
 
 struct ShortReadSample {
     String tumor_sample_name
@@ -31,8 +31,8 @@ workflow short_read_variant_calling {
     String sentieon_license = "aws-omics.sentieon.com:9011"
 
     # Execution
-    String n_threads_deepsomatic = "16"
-    String n_threads_sentieon = "32"
+    Int n_threads_deepsomatic = "16"
+    Int n_threads_sentieon = "32"
     String memory_deepsomatic = "~{n_threads_deepsomatic * 4} GB"
     String memory_sentieon = "~{n_threads_sentieon * 2} GB"
     Int preemptible_tries = 3
@@ -115,7 +115,7 @@ workflow short_read_variant_calling {
       input:
         canonical_user_id = canonical_user_id,
         sentieon_license = sentieon_license,
-        
+
         aligned_reads = SentieonMapping.aligned_reads,
         aligned_index = SentieonMapping.aligned_index,
         tumor_name = individual.tumor_sample_name,
@@ -387,7 +387,7 @@ task SentieonMapping {
     String sentieon_license = "aws-omics.sentieon.com:9011"
 
     # Execution
-    String n_threads = "32"
+    Int n_threads = 32
     String memory = "64 GiB"
     Int preemptible_tries = 3
     String sentieon_docker
