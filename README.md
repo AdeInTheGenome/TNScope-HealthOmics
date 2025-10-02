@@ -7,7 +7,7 @@ This AWS HealthOmics private workflow (written in WDL) performs read mapping and
 ## Overview
 
 - **Workflow ID:** `1651565`
-- **Workflow version** v5
+- **Workflow version** v6
 - Aligns tumor and normal FASTQ files using Sentieon DNASeq
 - Calls variants using TNScope and DeepSomatic
 - Supports multisample input with shared or unique normal samples
@@ -92,5 +92,5 @@ Run the command as shown below
 ## Example Command to run the HealthOmics Pipeline
 
 ```sh
-aws omics start-run --role-arn "arn:aws:iam::860660336427:role/service-role/OmicsWorkflow-20240124114364" --workflow-id 1651565 --name "<Input Descriptive Name Here> $(date +%Y%m%d-%H%M%S)" --output-uri s3://srs-hg002-seq/main-broad-082025/analysis/short-read/ --storage-capacity 5000 --parameters file://SRS_Shortread_Map_VC_Multisample_parameters.json --workflow-version-name 'v5'
+aws omics start-run --role-arn "arn:aws:iam::860660336427:role/service-role/OmicsWorkflow-20240124114364" --workflow-id 1651565 --name "<Input Descriptive Name Here> $(date +%Y%m%d-%H%M%S)" --output-uri s3://srs-hg002-seq/main-broad-082025/analysis/short-read/ --storage-capacity 5000 --parameters file://SRS_Shortread_Map_VC_Multisample_parameters.json --workflow-version-name 'v6'
 ```
