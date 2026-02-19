@@ -1,96 +1,177 @@
-# SRS ShortRead Map & Variant Calling (Multisample) - AWS HealthOmics Workflow
+# SRS Short-Read Tumor-Normal Pipeline
 
-This AWS HealthOmics private workflow (written in WDL) performs read mapping and variant calling on paired tumor-normal short read FASTQ files. It supports multiple samples in a batch run and uses industry-standard variant callers (Sentieon's TNScope and Google's DeepSomatic).
+**Somatic Alignment and Variant Calling Workflow for the SRS
+Initiative**
 
----
+This repository contains the short-read tumor-normal workflow used in
+the **Somatic Reference Samples (SRS) Initiative** to generate
+alignments and somatic variant callsets for engineered HG002 clones and
+FFPE mixtures described in:
+
+Daniels et al., *Somatic Reference Sample Development and Evaluation
+Using Unedited and CRISPR-Cas9 Edited Human Cell Lines* 
+
+This workflow was used to generate orthogonal short-read somatic
+callsets reported in the manuscript (Methods; Data & Code Availability).
+
+------------------------------------------------------------------------
 
 ## Overview
 
-- **Workflow ID:** `1651565`
-- **Workflow version** v6
-- Aligns tumor and normal FASTQ files using Sentieon DNASeq
-- Calls variants using TNScope and DeepSomatic
-- Supports multisample input with shared or unique normal samples
+This AWS HealthOmics WDL workflow performs:
 
----
+-   Tumor--normal alignment (BWA-MEM, GRCh38)
+-   Somatic SNV and INDEL calling using:
+    -   **Sentieon TNscope (202112.07)**
+    -   **DeepSomatic (v1.8, Google)**
+-   Multisample batch execution
+-   Support for clone tumor-normal runs and FFPE tumor-only analysis
+    (modified parameters)
+
+The workflow was applied to:
+
+-   Illumina WGS (30×, 120×)
+-   Illumina WGS FFPE (600× aggregated)
+-   Illumina WES (600×)
+-   RNA-seq (handled separately via DRAGEN RNA pipeline)
+
+------------------------------------------------------------------------
 
 ## Repository Contents
 
-- `SRS-ShortRead-Map-VC-Multisample.wdl` – Workflow definition
-- `SRS_Shortread_Map_VC_Multisample_parameters_definition.json` – Input schema and descriptions
-- `SRS_Shortread_Map_VC_Multisample_parameters.json` – Sample input JSON file
+-   `SRS-ShortRead-Map-VC-Multisample.wdl` -- Primary workflow
+    definition (WDL)
+-   `SRS_Shortread_Map_VC_Multisample_parameters_definition.json` --
+    Input schema and parameter definitions
+-   `SRS_Shortread_Map_VC_Multisample_parameters.json` -- Example input
+    file
+-   `shortread_parameter_creation.sh` -- Helper script to generate
+    workflow parameter JSON from sample sheet
 
----
+------------------------------------------------------------------------
+
+## Workflow Architecture
+
+### Alignment
+
+-   **Aligner:** BWA-MEM\
+-   **Reference:** GRCh38 (DRAGEN hg38 multigenome v4)\
+-   **Output:** Coordinate-sorted BAM/CRAM
+
+### Somatic Variant Calling
+
+Two independent callers are executed:
+
+1.  **Sentieon TNscope (v202112.07)** -- Sensitive somatic SNV/INDEL
+    detection\
+2.  **DeepSomatic (v1.8)** -- Deep learning--based somatic variant
+    caller
+
+Variants are retained per caller and downstream merged/unified as
+described in the manuscript (Repun-based unification).
+
+------------------------------------------------------------------------
 
 ## Required Inputs
 
-### Parameters
+### Mandatory Parameters
 
-cohort: An array that defines tumor-normal FASTQ file groups along with sample metadata. Required.
-reference_name: The genome reference to use (options include hg38, t2t_mat, and t2t_pat). Required.
-canonical_user_id: Your AWS canonical user ID, needed for obtaining a Sentieon license. Required.
-sentieon_docker: URI for the Sentieon Docker image to use in the workflow. Required.
-deepsomatic_docker: URI for the DeepSomatic Docker image. Required.
-n_threads: Number of vCPUs to allocate (default is 32). Optional.
-memory: Amount of memory to allocate for tasks (default is 64 GiB). Optional.
+-   `cohort` -- Tumor-normal FASTQ group definitions\
+-   `reference_name` -- Genome reference (`hg38`, `t2t_mat`, `t2t_pat`)\
+-   `canonical_user_id` -- Required for Sentieon license\
+-   `sentieon_docker` -- Sentieon container URI\
+-   `deepsomatic_docker` -- DeepSomatic container URI
 
----
-## Parameter Json Creation
-The input parameter file can be created manually or using the shortread_parameter_creation.sh script. 
+### Optional Parameters
 
-Create a sample sheet csv copied from the WGS_Metadata_Table. Keep all headers from the WGS_Metadata_Table and copy only the rows for the corresponding samples you want to run. The csv MUST contain at least the following headers:
+-   `n_threads` (default: 32)\
+-   `memory` (default: 64 GiB)
 
-  - Sample ID (B1 or B2 refers to batch)
-  - Sample Type
-  - Read 1 Fastq S3 Path
-  - Read 2 Fastq S3 Path 
+------------------------------------------------------------------------
 
-Run the command as shown below
+## Example Input JSON Structure
 
-```sh
-./shortread_parameter_creation.sh -i WGS_Metadata_Table.csv -o test.json
-```
-
-## Example Input Parameter Structure
-
-```json
+``` json
 {
   "cohort": {
     "samples": [
       {
-        "tumor_sample_name": "test_sample1",
-        "normal_sample_name": "chr4_chr7_normal",
-        "r1_tumor_fastqs": [
-          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_tumor_R1.fastq.gz"
-        ],
-        "r2_tumor_fastqs": [
-          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_tumor_R2.fastq.gz"
-        ],
-        "r1_normal_fastqs": [
-          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_normal_R1.fastq.gz"
-        ],
-        "r2_normal_fastqs": [
-          "s3://srs-poc-test/fastqs/compressed/chr4_chr7_normal_R2.fastq.gz"
-        ],
-        "tumor_read_groups": [
-          "@RG\\tID:chr4_chr7_tumor_test1\\tSM:chr4_chr7_tumor_test1\\tPL:ILLUMINA"
-        ],
-        "normal_read_groups": [
-          "@RG\\tID:normal_sample\\tSM:chr4_chr7_normal\\tPL:ILLUMINA"
-        ]
+        "tumor_sample_name": "BRAF-V600E_clone",
+        "normal_sample_name": "HG002_parent",
+        "r1_tumor_fastqs": ["s3://bucket/tumor_R1.fastq.gz"],
+        "r2_tumor_fastqs": ["s3://bucket/tumor_R2.fastq.gz"],
+        "r1_normal_fastqs": ["s3://bucket/normal_R1.fastq.gz"],
+        "r2_normal_fastqs": ["s3://bucket/normal_R2.fastq.gz"]
       }
     ]
   },
   "reference_name": "hg38",
-  "canonical_user_id": "YOUR_CANONICAL_ID",
-  "sentieon_docker": "YOUR_SENTIEON_IMAGE_URI",
-  "deepsomatic_docker": "YOUR_DEEPSOMATIC_IMAGE_URI"
+  "canonical_user_id": "YOUR_ID",
+  "sentieon_docker": "URI",
+  "deepsomatic_docker": "URI"
 }
 ```
 
+------------------------------------------------------------------------
 
-## Example Command to run the HealthOmics Pipeline
+## Running the Workflow (AWS HealthOmics)
 
-```sh
-aws omics start-run --role-arn "arn:aws:iam::860660336427:role/service-role/OmicsWorkflow-20240124114364" --workflow-id 1651565 --name "<Input Descriptive Name Here> $(date +%Y%m%d-%H%M%S)" --output-uri s3://srs-hg002-seq/main-broad-082025/analysis/short-read/ --storage-capacity 5000 --parameters file://SRS_Shortread_Map_VC_Multisample_parameters.json --workflow-version-name 'v6'
+``` bash
+aws omics start-run   --workflow-id <workflow_id>   --name "SRS_shortread_$(date +%Y%m%d)"   --output-uri s3://<output-bucket>/   --parameters file://parameters.json   --workflow-version-name "v6"
 ```
+
+Note: IAM roles and storage configuration are environment-dependent and
+should be configured per deployment.
+
+------------------------------------------------------------------------
+
+## Computational Environment
+
+-   Platform: AWS HealthOmics\
+-   Execution backend: WDL\
+-   Compute: dynamically allocated (f2 instances typical for SRS runs)\
+-   Storage: S3 streaming
+
+------------------------------------------------------------------------
+
+## Reproducibility Notes
+
+-   Reference: GRCh38 (DRAGEN hg38 multigenome v4)\
+-   Chromosomes analyzed: chr1--22, X, Y\
+-   PASS variants extracted for downstream analysis\
+-   VAFs derived directly from FORMAT fields (allele support / total
+    depth)\
+-   Structural variants handled separately in DRAGEN pipeline
+
+Variant representation unification and benchmark construction are
+described in the Repun pipeline:
+https://github.com/nate-d-olson/mdic_repun
+
+------------------------------------------------------------------------
+
+## Relationship to the SRS Manuscript
+
+This workflow generated:
+
+-   Orthogonal short-read somatic callsets (30×, 120×)\
+-   FFPE validation datasets (600×)\
+-   Data used for:
+    -   Allele frequency stability analysis\
+    -   Clone-specific variant detection\
+    -   Benchmark tier construction\
+    -   Cross-caller concordance analysis
+
+------------------------------------------------------------------------
+
+## Citation
+
+If you use this workflow, please cite:
+
+Daniels CA, Abdulkadir A, Cleveland MH, et al.\
+*Somatic Reference Sample Development and Evaluation Using Unedited and
+CRISPR-Cas9 Edited Human Cell Lines*. (in preparation)
+
+------------------------------------------------------------------------
+
+## License
+
