@@ -27,18 +27,12 @@ This AWS HealthOmics WDL workflow performs:
 
 - Tumor–normal alignment (BWA-MEM, GRCh38)
 - Somatic SNV and INDEL calling using:
-  - **Sentieon TNscope (202112.07)**
+  - **TNscope (202112.07,Sentieon)**
   - **DeepSomatic (v1.8, Google)**
 - Multisample batch execution
 - Support for clone tumor-normal runs and FFPE tumor-only analysis (modified parameters)
 
-The workflow was applied to:
-
-- Illumina WGS (30×, 120×)
-- Illumina WGS FFPE (600× aggregated)
-- Illumina WES (600×)
-- RNA-seq (handled separately via DRAGEN RNA pipeline)
-
+The workflow was applied to Illumina WGS results (30×, 120×)
 ------------------------------------------------------------------------
 
 ## Repository Contents
@@ -65,7 +59,7 @@ The workflow was applied to:
 ### Alignment
 
 - **Aligner:** BWA-MEM  
-- **Reference:** GRCh38 (DRAGEN hg38 multigenome v4)  
+- **Reference:** GRCh38 GCA_000001405.15   
 - **Output:** Coordinate-sorted BAM/CRAM  
 
 ### Somatic Variant Calling
@@ -84,7 +78,7 @@ described in the manuscript (Repun-based unification).
 
 - Platform: AWS HealthOmics  
 - Execution backend: WDL  
-- Compute: dynamically allocated (f2 instances typical for SRS runs)  
+- Compute: dynamically allocated via HealthOmics (omics.m.8xlarge typical for SRS runs)  
 - Storage: S3 streaming  
 
 ------------------------------------------------------------------------
@@ -95,7 +89,6 @@ described in the manuscript (Repun-based unification).
 - Chromosomes analyzed: chr1–22, X, Y  
 - PASS variants extracted for downstream analysis  
 - VAFs derived directly from FORMAT fields (allele support / total depth)  
-- Structural variants handled separately in DRAGEN pipeline  
 
 Variant representation unification and benchmark construction are
 described in the Repun pipeline:  
@@ -108,7 +101,6 @@ https://github.com/nate-d-olson/mdic_repun
 This workflow generated:
 
 - Orthogonal short-read somatic callsets (30×, 120×)
-- FFPE validation datasets (600×)
 - Data used for:
   - Allele frequency stability analysis
   - Clone-specific variant detection
